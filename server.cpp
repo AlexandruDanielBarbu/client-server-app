@@ -79,10 +79,10 @@ int main(int argc, char const *argv[]) {
                 // TODO Apply algorithm to detect potential users
                 // TODO Send to correct user the message 
             } else if (fd == tcp_listen_fd) {
-                // TODO Create new socket for new connection
+                // Create new socket for new connection
                 int s = accept(tcp_listen_fd, NULL, NULL);
-                struct epoll_event client_event;
                 // monitor this link for a change
+                struct epoll_event client_event;
                 config_epoll_event(client_event, epoll_fd, s);
             } else if (fd == STDIN_FILENO) {
                 char client_message[10000];
@@ -96,11 +96,16 @@ int main(int argc, char const *argv[]) {
                     printf("unknown command!\n");
                 }
             } else {
-                // TODO Client sends me something
+                // Client sends me something
                 asp_header client_response;
                 client_response = accept_request(fd);
                 printf("OP: %d\nID: %d\nIP: %s\nPORT: %d\nTOPIC: %s", client_response.operation, client_response.client_id,
                 client_response.ip_address, client_response.port, client_response.topic);
+
+                // TODO EXIT
+                // TODO Subscribe
+                // TODO Unsubscirbe
+
             }
         }
     }
