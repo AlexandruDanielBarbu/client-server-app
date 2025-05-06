@@ -33,6 +33,8 @@
 using namespace std;
 
 int main(int argc, char const *argv[]) {
+    setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+
     // Input checks
     if (argc != 2 ||                    // cli arguments check, accept only 2
         !is_port_number(argv[1])) {     // port is a number check
@@ -262,7 +264,14 @@ int main(int argc, char const *argv[]) {
                     
                     if (clients_hash_map.find(incoming_client.get_id()) == clients_hash_map.end()) {
                         // Client not found
-                        
+                        int result = setsockopt(s,
+                            IPPROTO_TCP,
+                            TCP_NODELAY,
+                            (char *) &yes, 
+                            sizeof(int));
+                        if(result == -1) {
+                            goto my_fail_exit;
+                        }
                         // Monitor this link for a change
                         struct epoll_event client_event;
                         config_epoll_event(client_event, epoll_fd, s);

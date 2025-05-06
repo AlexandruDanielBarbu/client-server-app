@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <sys/epoll.h>
 #include <unistd.h>
+#include <netinet/tcp.h>
 
 #include "cli_checks_utils.h"
 #include "connect_utils.h"
@@ -26,6 +27,8 @@
 using namespace std;
 
 int main(int argc, char const *argv[]) {
+    setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+    
     // Input checks
     if (argc != 4 ||
         !is_ip_address(argv[2]) ||
@@ -44,7 +47,16 @@ int main(int argc, char const *argv[]) {
         // cerr << "Error on client TCP socket\n";
         return 1;
     }
-    
+    int yes = 1;
+    int result = setsockopt(sockfd,
+                            IPPROTO_TCP,
+                            TCP_NODELAY,
+                            (char *) &yes, 
+                            sizeof(int));
+    if (result == -1) {
+        return 1;
+    }
+
     if (client_connect(argv[2], port_number, sockfd) == -1) {
         shutdown_and_close(sockfd);
         return 1;
