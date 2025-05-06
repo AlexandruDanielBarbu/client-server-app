@@ -11,10 +11,12 @@ int recv_all(int sockfd, void *buffer, size_t len) {
     char *buff = (char *)buffer;
 
     while(bytes_remaining) {
-        int rc = recv(sockfd, buff, bytes_remaining, 0);
+        int rc = recv(sockfd, buff + bytes_received, bytes_remaining, 0);
         if (rc == -1)
             return -1;
-
+        if (rc == 0)
+            break;
+        
         bytes_received += rc;
         bytes_remaining -= len;        
     }
@@ -28,7 +30,7 @@ int send_all(int sockfd, void *buffer, size_t len) {
     char *buff = (char *) buffer;
 
     while(bytes_remaining) {
-        int rc = send(sockfd, buff, bytes_remaining, 0);
+        int rc = send(sockfd, buff + bytes_sent, bytes_remaining, 0);
         if (rc == -1)
             return rc;
 

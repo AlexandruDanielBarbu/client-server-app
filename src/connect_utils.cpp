@@ -21,7 +21,7 @@ int server_bind(int port_number, int fd) {
     if (bind(fd,
             (struct sockaddr *)&addr,
              sizeof(struct sockaddr_in)) == -1) {
-        cerr << "Error on bind!\n";
+        // cerr << "Error on bind!\n";
         shutdown_and_close(fd);
         return -1;
     }
