@@ -18,13 +18,16 @@
 #define SUBSCRIBE_FORMAT_MESSAGE "Subscribed to topic "
 #define UNSUBSCRIBE_FORMAT_MESSAGE "Unsubscribed from topic "
 
-#define MAX_EPOLL_ARRAY_SIZE 102
-#define MAX_CLIENT_MESSAGE_LEN 80
+// Epoll constants
+constexpr int MAX_EPOLL_ARRAY_SIZE   = 102;
+constexpr int MAX_CLIENT_MESSAGE_LEN = 80;
 
-#define MAX_TOPIC_LEN 51
-#define MAX_UDP_MESSAGE_LEN (51 + sizeof(int) + 1501) 
+// Topic tree constants
+constexpr int MAX_TOPIC_LEN          = 51;
+constexpr int MAX_UDP_MESSAGE_LEN    = (51 + sizeof(int) + 1501);
 
-using namespace std;
+#include "Epoll.h"
+#include "Socket.h"
 
 int main(int argc, char const *argv[]) {
     setvbuf(stdout, NULL, _IONBF, BUFSIZ);
@@ -33,84 +36,62 @@ int main(int argc, char const *argv[]) {
     if (argc != 4 ||
         !is_ip_address(argv[2]) ||
         !is_port_number(argv[3])) {
-        // cerr << "Please use executable correctly\n";
+        std::cerr << "Please use executable correctly\n";
         return 1;
     }
     
     int port_number;
     sscanf(argv[3], "%d", &port_number);
 
+    int yes = 1;
+
     Client myself = Client(string(argv[1]), port_number, string(argv[2]));
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
-        // cerr << "Error on client TCP socket\n";
-        return 1;
-    }
-    int yes = 1;
-    int result = setsockopt(sockfd,
-                            IPPROTO_TCP,
-                            TCP_NODELAY,
-                            (char *) &yes, 
-                            sizeof(int));
-    if (result == -1) {
-        return 1;
-    }
+    // Client socket setup
+    Socket my_socket;
+    if (!my_socket.create_socket(AF_INET, SOCK_STREAM, 0) ||
+        !my_socket.set_socket_opt(IPPROTO_TCP, TCP_NODELAY, (char *) &yes, sizeof(int)) ||
+        !my_socket.connect_socket(argv[2], port_number)) return 1;
 
-    if (client_connect(argv[2], port_number, sockfd) == -1) {
-        shutdown_and_close(sockfd);
-        return 1;
-    }
-    send_connect_request(myself, sockfd);
-    // cout << "sent the connect data" << endl;
+    send_connect_request(myself, my_socket.get_fd());
     
-    int epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1) {
-        // cerr << "Error on epoll fd open\n";
-        shutdown_and_close(sockfd);
-        return 1;               
-    }
-    
+    Epoll epoll_instance;
+    if (!epoll_instance.create_epoll()) return 1;
+
     struct epoll_event tcp_event, stdin_event;
-    config_epoll_event(tcp_event, epoll_fd, sockfd);
-    config_epoll_event(stdin_event, epoll_fd, STDIN_FILENO);
+    epoll_instance.config_epoll_event(tcp_event, my_socket.get_fd());
+    epoll_instance.config_epoll_event(stdin_event, STDIN_FILENO);
 
     int events_array_capacity = MAX_EPOLL_ARRAY_SIZE;
     vector<struct epoll_event> events_array(events_array_capacity);
     bool will_resize = false;
 
-    while (true)
-    {
+    while (true) {
         if (will_resize) {
             // if vector is close to full, double in size
             events_array.resize(events_array_capacity * 2);
             will_resize = false; 
         }
         
-        int n = epoll_wait(epoll_fd, events_array.data(), events_array_capacity, -1);
+        int n = epoll_instance.wait_for_events(events_array, events_array_capacity);
         if (n == -1) {
-            // cerr << "Error at epoll_wait!\n";
+            std::cerr << "Error at epoll_wait!\n";
             goto my_fail_exit;
         }
-
-        if (n > events_array_capacity / 2) {
+        if (n > events_array_capacity / 2)
             will_resize = true;
-        }
         
         for (int i = 0; i < n; i++) {
             int fd = events_array[i].data.fd;
 
-            if (fd == sockfd) {
+            if (fd == my_socket.get_fd()) {
                 // Handle TCP message
                 // got response from server
-                string data = receive_data(sockfd);
+                string data = receive_data(my_socket.get_fd());
                 if (data == "EROARE DE ZILE MARI!" ||
                     data == "SOCKET INCHIS GRACEFULLY")
-                {
                     goto my_exit;
-                }
                 
-                // cout << data << endl;
                 int op;
                 sscanf(data.c_str(), "%d", &op);
 
@@ -199,20 +180,20 @@ int main(int argc, char const *argv[]) {
                 sscanf(client_message, "%s", cmd);
 
                 if (strcmp(cmd, "exit") == 0) {
-                    send_exit(myself, sockfd);
+                    send_exit(myself, my_socket.get_fd());
                     // wait for server response
                     // goto my_exit;
                 } else if (strcmp(cmd, "subscribe") == 0) {
                     char topic[MAX_TOPIC_LEN];
                     sscanf(client_message + strlen(cmd), "%s", topic);
 
-                    send_sub_unsub(myself, ASP_CLIENT_SUBSCRIBE, string(topic), sockfd);
+                    send_sub_unsub(myself, ASP_CLIENT_SUBSCRIBE, string(topic), my_socket.get_fd());
                     // wait server response
                 } else if (strcmp(cmd, "unsubscribe") == 0) {
                     char topic[MAX_TOPIC_LEN];
                     sscanf(client_message + strlen(cmd), "%s", topic);
 
-                    send_sub_unsub(myself, ASP_CLIENT_UNSUBSCRIBE, string(topic), sockfd);
+                    send_sub_unsub(myself, ASP_CLIENT_UNSUBSCRIBE, string(topic), my_socket.get_fd());
                     // wait server response
                 } else {
                     // printf("Some other command:\n%s\n", client_message);
@@ -222,12 +203,8 @@ int main(int argc, char const *argv[]) {
     }
 
 my_exit:
-    close(epoll_fd);
-    shutdown_and_close(sockfd);
     return 0;
 
 my_fail_exit:
-    close(epoll_fd);
-    shutdown_and_close(sockfd);
     return 1;
 }
