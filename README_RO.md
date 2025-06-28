@@ -1,30 +1,77 @@
-# Tema 2 - PCOM
-Barbu Alexandru Daniel 324CC
+# Client Server App
+Barbu Alexandru Daniel
 
-## Descirere proiect
+## Cuprins
 
-Proiectul / tema / assignmentul este o aplicatie client server.
-Mai multi clienti UDP se pot conecta la un server si pot trimite mesaje la niste topicuri, la care se pot abona mai multi clienti TCP.
+- [Context](#context)
+- [Descriere proiect](#descriere-proiect)
+- [Ce am învățat](#ce-am-învățat-din-acest-proiect)
+- [Mod de rulare](#mod-de-rulare)
+- [Comenzi posibile](#comenzi-posibile)
+  - [Server](#server)
+  - [Client](#client)
+- [Detalii de implementare](#detalii-de-implementare)
+  - [De ce epoll și nu poll](#de-ce-epoll-și-nu-poll)
+  - [Cum transmit datele de la client la server și invers?](#cum-transmit-datele-de-la-client-la-server-și-invers)
+  - [Cum și când fac exit și în ce ordine](#cum-și-când-fac-exit-și-în-ce-ordine)
+  - [Cum am făcut faza cu wildcarduri?](#cum-am-făcut-faza-cu-wildcarduri)
+  - [De ce număr mic pe listen?](#de-ce-număr-mic-pe-listen)
+  - [Câți clienți se pot conecta la server?](#câți-clienți-se-pot-conecta-la-server)
+  - [Output client](#output-client)
+  - [De ce C++?](#de-ce-c)
+  - [Makefile](#makefile)
+- [Ce am mai adăugat](#ce-am-mai-adăugat)
+- [Ce ar merge schimbat](#ce-ar-merge-schimbat)
+- [Impresii despre temă](#impresii-despre-temă)
+
+---
+
+## Context
+
+Acest proiect a fost inițial dezvoltat ca temă pentru un curs universitar de rețele. A fost extins și îmbunătățit ulterior pentru a reflecta o arhitectură mai clară și o abordare orientată spre practică profesională.
+
+---
+
+## Descriere proiect
+
+Proiectul este o aplicație client-server.
+
+Mai mulți clienți UDP se pot conecta la un server și pot trimite mesaje la niște topicuri, la care se pot abona mai mulți clienți TCP.
+
+---
+
+## Ce am învățat din acest proiect
+
+- Am dobândit experiență practică în lucrul cu **socket-uri** și în implementarea unei aplicații client-server robuste.
+- Am consolidat cunoștințele de **programare orientată pe obiect** folosind **clase în C++**, structurând codul într-un mod clar și modular.
+- Am aplicat în mod conștient principiile **RAII (Resource Acquisition Is Initialization)** pentru a gestiona eficient resursele în componente precum `Socket.h` și `Epoll.h`.
+- Am învățat cum să **integrez cod C++ cu cod C**, ceea ce mi-a oferit o perspectivă mai clară asupra interoperabilității dintre cele două limbaje și mi-a extins capacitatea de a lucra cu biblioteci existente.
+- M-am familiarizat cu concepte din STL, precum **`std::vector`**, utilizat pentru gestionarea dinamică a datelor.
+- Am învățat să-mi **planific și structurez mai bine munca**, anticipând pașii necesari și ajustându-mi abordarea pentru a duce proiectul la bun sfârșit într-un mod eficient și sustenabil.
+
+---
 
 ## Mod de rulare
 
-> NOTE: Este nevoie de un client udp implementat pentru a testa la maxim aplicatia.
+> NOTE: Este nevoie de un client UDP implementat pentru a testa la maxim aplicația.
 
 ```bash
-make # compileaza tot
-make run_server # porneste serverul pe portul 4040
-make run_subscriber # porneste clientul cu id "C1" pe adresa ip 127.0.0.1 pe portul 4040 al serverului
+make # compilează tot
+make run_server # pornește serverul pe portul 4040
+make run_subscriber # pornește clientul cu id "C1" pe adresa IP 127.0.0.1 pe portul 4040 al serverului
 ```
 
 ## Comenzi posibile
 ### Server
 
-Pe server se poate da numai `exit`. Orice alt string sau capitalizare gresita a lui exit este ignorata.
+Pe server se poate da numai `exit`. Orice alt string sau capitalizare greșită a lui `exit` este ignorată.
+
 ``` bash
 exit
 ```
 
 ### Client
+
 ```bash
 subscribe ana/are/mere          # se va face subscribe la topicul ana/are/mere
 unsubscribe ana/are/pere        # se va face unsubscribe la topicul ana/are/pere
@@ -32,67 +79,60 @@ exit                            # se va face exit
 ```
 
 ## Detalii de implementare
-### De ce epoll si nu poll
+### De ce epoll și nu poll
 
-Sincer sa fiu am pornit din greseala cu epoll, eram familiar de la SO cu termenul si apucandu-ma tarziu de tema
-am crezut ca la lab am facut epoll asa ca am mers mai departe cu epoll, dar din ce am inteles din research pe net, epoll
-este mai rapid decat poll sau select, facand selectia in O(1).
+Sincer să fiu, am pornit din greșeală cu `epoll`. Eram familiar cu termenul și, apucându-mă târziu de temă, am crezut că la laborator am făcut `epoll`, așa că am mers mai departe cu `epoll`. Din ce am înțeles din research pe net, `epoll` este mai rapid decât `poll` sau `select`, făcând selecția în `O(1)`.
 
-Articolul din care m-am documentat cum se foloseste epoll este [acesta](https://copyconstruct.medium.com/the-method-to-epolls-madness-d9d2d6378642).
+Articolul din care m-am documentat cum se folosește `epoll` este [acesta](https://copyconstruct.medium.com/the-method-to-epolls-madness-d9d2d6378642).
 
-### Cum transmit datele de la client la server si invers?
+### Cum transmit datele de la client la server și invers?
 
-Folosind Alex Simple Protocol (ASP) :)))). Este o inventie proprie care transmite in format human readable datele, controland
-ce se intampla cu o serie de flaguri.
+Folosind _**Alex Simple Protocol (ASP)**_ :)))) Este o invenție proprie care transmite în format "human-readable" datele, controlând ce se întâmplă cu o serie de flaguri.
 
-### Cum si cand fac exit si in ce ordine
+### Cum și când fac exit și în ce ordine
 
-Clientul cand face exit transmite la server ca face exit si apoi pur si simplu iese din executie. Daca primeste un mesaj de la server
-destinat lui unde se mentioneaza ca se poate iesi si clientul nu a iesit deja, va iesi. Nu exista motive ca un client sa mai astepte
-sa primeasca un semnal de confirmare de la server sau sa nu iasa daca serverul spune nu, dar am zis sa las poate mai daug ceva.
+Clientul, când face exit, transmite la server că face exit și apoi pur și simplu iese din execuție. Dacă primește un mesaj de la server destinat lui unde se menționează că se poate ieși și clientul nu a ieșit deja, va ieși. Nu există motive ca un client să mai aștepte să primească un semnal de confirmare de la server sau să nu iasă dacă serverul spune "nu", dar am zis să las, poate mai adaug ceva.
 
-Serverul da exit numai dupa ce inchide toti clientii, le da unsubscribe la toti de la topicuri si dealoca arborele de topicuri.
+Serverul dă exit numai după ce închide toți clienții, le dă unsubscribe tuturor de la topicuri și dealocă arborele de topicuri.
 
-### Cum am facut faza cu wildcarduri?
+### Cum am făcut faza cu wildcarduri?
 
-Mi-am facut un arbore din topicurile la care dau subscribe, in nodurile frunza retin clientii care sunt abonati la acel topic.
-Notificarea clientului o fac traversand arborele si dand notify la clientii din nodul frunza.
+> CONTEXT: Un client poate face subscribe sau unsubscribe și la topicuri precum `ana/*` care se potrivește pe topicuri care încep cu `ana/` și se termină sau sunt urmate de oricâte nivele. Același concept este valabil și pentru `+` care face în mare cam același lucru.
 
-Cand dau de cuvantul meu sau + in parsarea topicului il iau de bun si merg mai departe, daca dau de * il iau de bun si merg mai departe
-in parcurgerea grafului tinand cont ca vreau sa caut si restul cuvintelor din topic printre copii nodului *.
+Mi-am făcut un arbore din topicurile la care dau subscribe, în nodurile frunză rețin clienții care sunt abonați la acel topic. Notificarea clientului o fac traversând arborele și dând notify la clienții din nodul frunză.
 
->NOTE: este posibil ca testele care imi ies din timp sa iasa din timp din cauza algoritmului pentru *.
+Când dau de cuvântul meu sau `+` în parsarea topicului, îl iau de bun și merg mai departe. Dacă dau de `*`, îl iau de bun și merg mai departe în parcurgerea grafului ținând cont că vreau să caut și restul cuvintelor din topic printre copiii nodului `*`.
 
-### De ce numar mic pe listen?
+> NOTE: Este posibil ca testele care îmi ies din timp să iasă din timp din cauza algoritmului pentru `*`.
 
-Din ce am inteles numarul maxim de utilizatori pus in functia listen este o coada de clienti folosita doar daca am clienti in asteptare, nu limiteaza in vre-un fel cati clienti se pot conecta la server.
+### De ce număr mic pe listen?
 
-### Cati clienti se pot comecta la server?
+Din ce am înțeles, numărul maxim de utilizatori pus în funcția `listen` este o coadă de clienți folosită doar dacă am clienți în așteptare, nu limitează în vreun fel câți clienți se pot conecta la server.
 
-Oricati! Periodic verific dimensiunea lui events_array si o dublez daca e nevoie.
+### Câți clienți se pot conecta la server?
+
+Oricâți! Periodic verific dimensiunea lui `events_array` și o dublez dacă e nevoie.
 
 ### Output client
 
-Se cerea <IP client udp>:<port client udp> .... Eu am implementat acest feature, dar l-am comentat pt a face checkerul sa mearga.
+Se cerea `<IP client udp>:<port client udp> ....`. Eu am implementat acest feature, dar l-am comentat pentru a face checker-ul să meargă.
 
 ### De ce C++?
 
-Voiam sa incerc ceva diferit si speram ca voi termina tema mai repede, dar nu a fost asa, cred ca mai bine faceam in c.
-Ce am eu este un c 65% c++ restul.
+Voiam să învăț C++ și doream să arăt că mă descurc cu acest limbaj.
 
 ### Makefile
 
-Nu eu l-am facut, inteligenta artificiala m-a ajutat sa o fac. Spre apararea mea aveam un makefile primitiv facut,
-dar nu era destul de generic pt asa multe fisiere. Singur m-am gandit in schimb sa generez fisierele obiect si binarele intermediare in foldere separate.
+Nu eu l-am făcut, inteligența artificială m-a ajutat să o fac. Spre apărarea mea, aveam un makefile primitiv făcut, dar nu era destul de generic pentru atâtea fișiere. Singur m-am gândit, în schimb, să generez fișierele obiect și binarele intermediare în foldere separate.
 
-## Ce ar merge schimbar
+## Ce am mai adăugat
 
-Daca tot am facut in C++ cred ca as putea sa inglobez file descriptorii intr-o clasa ca atunci cand iese din scope si se dealoca de pe
-stiva sa se inchida automat fd-ul.
+Varianta originală a folosit o implementare naivă de sockets cu multe `goto`-uri și verificări ale apelurilor de sistem. Ca să unific procesul, mi-am făcut o clasă de Socket și Epoll ca atunci când ceva merge prost să dau `return` și să am socket-ii automat închiși.
 
-Alocarile de buffere: Acum ca stiu mai multe as fi putut folosi la greu vector<char>data.resize sa fac memcpy memset etc apoi sa ma folosesc de data.data().
+## Ce ar merge schimbat
 
-## Impresii despre tema
+Alocările de buffere: Acum că știu mai multe, aș fi putut folosi la greu `vector<char>data.resize` să fac `memcpy`, `memset` etc. apoi să mă folosesc de `data.data()`.
 
-Abea astept sa o pun pe git, sa o mai finisez, sa o pun in cv etc. Pe scurt mi-a placut mai mult pe final cand am dat debug si chair am inteles ce se inatmpla e fapt.
-Tema a fost grea dar e bine venita.
+## Impresii despre temă
+
+Abia aștept să o pun pe Git, să o mai finisez, să o pun în CV etc. Pe scurt, mi-a plăcut mai mult pe final când am dat debug și chiar am înțeles ce se întâmplă de fapt. Tema a fost interesantă și a fost o provocare binevenită.

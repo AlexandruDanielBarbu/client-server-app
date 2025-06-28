@@ -1,98 +1,138 @@
-# Tema 2 - PCOM
-Barbu Alexandru Daniel 324CC
+# Client Server App
+Barbu Alexandru Daniel
 
-## Descirere proiect
+## Table of Contents
 
-Proiectul / tema / assignmentul este o aplicatie client server.
-Mai multi clienti UDP se pot conecta la un server si pot trimite mesaje la niste topicuri, la care se pot abona mai multi clienti TCP.
+- [Context](#context)
+- [Project Description](#project-description)
+- [What I Learned](#what-i-learned-from-this-project)
+- [How to Run](#how-to-run)
+- [Possible Commands](#possible-commands)
+  - [Server](#server)
+  - [Client](#client)
+- [Implementation Details](#implementation-details)
+  - [Why epoll and not poll](#why-epoll-and-not-poll)
+  - [How do I transmit data from client to server and vice versa?](#how-do-i-transmit-data-from-client-to-server-and-vice-versa)
+  - [How and when to exit, and in what order](#how-and-when-to-exit-and-in-what-order)
+  - [How I implemented wildcards](#how-i-implemented-wildcards)
+  - [Why a small number for listen?](#why-a-small-number-for-listen)
+  - [How many clients can connect to the server?](#how-many-clients-can-connect-to-the-server)
+  - [Client Output](#client-output)
+  - [Why C++?](#why-c)
+  - [Makefile](#makefile)
+- [What I Added](#what-i-added)
+- [What Could Be Improved](#what-could-be-improved)
+- [Impressions about the Project](#impressions-about-the-project)
 
-## Mod de rulare
+---
 
-> NOTE: Este nevoie de un client udp implementat pentru a testa la maxim aplicatia.
+## Context
+
+This project was initially developed as an assignment for a university networking course. It was later extended and improved to reflect a clearer architecture and a more professional, practice-oriented approach.
+
+---
+
+## Project Description
+
+The project is a client-server application.
+
+Multiple UDP clients can connect to a server and send messages to specific topics, which multiple TCP clients can subscribe to.
+
+---
+
+## What I Learned from This Project
+
+- I gained practical experience working with **sockets** and implementing a robust client-server application.
+- I consolidated my knowledge of **object-oriented programming** using **C++ classes**, structuring the code in a clear and modular way.
+- I consciously applied **RAII (Resource Acquisition Is Initialization)** principles to efficiently manage resources in components like `Socket.h` and `Epoll.h`.
+- I learned how to **integrate C++ code with C code**, which gave me a clearer perspective on the interoperability between the two languages and extended my ability to work with existing libraries.
+- I familiarized myself with STL concepts, such as **`std::vector`**, used for dynamic data management.
+- I learned to **better plan and structure my work**, anticipating necessary steps and adjusting my approach to complete the project efficiently and sustainably.
+
+---
+
+## How to Run
+
+> NOTE: An implemented UDP client is needed to fully test the application.
 
 ```bash
-make # compileaza tot
-make run_server # porneste serverul pe portul 4040
-make run_subscriber # porneste clientul cu id "C1" pe adresa ip 127.0.0.1 pe portul 4040 al serverului
+make # compiles everything
+make run_server # starts the server on port 4040
+make run_subscriber # starts the client with ID "C1" on IP address 127.0.0.1 on the server's port 4040
 ```
 
-## Comenzi posibile
+## Possible Commands
 ### Server
 
-Pe server se poate da numai `exit`. Orice alt string sau capitalizare gresita a lui exit este ignorata.
+On the server, only `exit` can be entered. Any other string or incorrect capitalization of `exit` will be ignored.
+
 ``` bash
 exit
 ```
 
 ### Client
+
 ```bash
-subscribe ana/are/mere          # se va face subscribe la topicul ana/are/mere
-unsubscribe ana/are/pere        # se va face unsubscribe la topicul ana/are/pere
-exit                            # se va face exit 
+subscribe ana/are/mere          # this will subscribe to the topic ana/are/mere
+unsubscribe ana/are/pere        # this will unsubscribe from the topic ana/are/pere
+exit                            # this will exit the application
 ```
 
-## Detalii de implementare
-### De ce epoll si nu poll
+## Implementation Details
+### Why epoll and not poll
 
-Sincer sa fiu am pornit din greseala cu epoll, eram familiar de la SO cu termenul si apucandu-ma tarziu de tema
-am crezut ca la lab am facut epoll asa ca am mers mai departe cu epoll, dar din ce am inteles din research pe net, epoll
-este mai rapid decat poll sau select, facand selectia in O(1).
+Honestly, I started with `epoll` by mistake. I was familiar with the term, and starting the assignment late, I thought we had covered `epoll` in the lab, so I continued with `epoll`. From what I understood from online research, `epoll` is faster than `poll` or `select`, performing selection in **O(1)**.
 
-Articolul din care m-am documentat cum se foloseste epoll este [acesta](https://copyconstruct.medium.com/the-method-to-epolls-madness-d9d2d6378642).
+The article I used to learn how to use `epoll` is [this one](https://copyconstruct.medium.com/the-method-to-epolls-madness-d9d2d6378642).
 
-### Cum transmit datele de la client la server si invers?
+### How do I transmit data from client to server and vice versa?
 
-Folosind Alex Simple Protocol (ASP) :)))). Este o inventie proprie care transmite in format human readable datele, controland
-ce se intampla cu o serie de flaguri.
+Using ***Alex Simple Protocol (ASP)*** :)))) It's a custom invention that transmits data in a "human-readable" format, controlling what happens with a series of flags.
 
-### Cum si cand fac exit si in ce ordine
+### How and when to exit, and in what order
 
-Clientul cand face exit transmite la server ca face exit si apoi pur si simplu iese din executie. Daca primeste un mesaj de la server
-destinat lui unde se mentioneaza ca se poate iesi si clientul nu a iesit deja, va iesi. Nu exista motive ca un client sa mai astepte
-sa primeasca un semnal de confirmare de la server sau sa nu iasa daca serverul spune nu, dar am zis sa las poate mai daug ceva.
+When the client exits, it informs the server that it's exiting and then simply terminates execution. If it receives a message from the server intended for it, indicating that it can exit, and the client hasn't already exited, it will exit. There's no particular reason for a client to wait for a confirmation signal from the server or not to exit if the server says "no," but I left it in case I wanted to add something later.
 
-Serverul da exit numai dupa ce inchide toti clientii, le da unsubscribe la toti de la topicuri si dealoca arborele de topicuri.
+The server only exits after closing all clients, unsubscribing them from all topics, and deallocating the topic tree.
 
-### Cum am facut faza cu wildcarduri?
+### How I implemented wildcards
 
-Mi-am facut un arbore din topicurile la care dau subscribe, in nodurile frunza retin clientii care sunt abonati la acel topic.
-Notificarea clientului o fac traversand arborele si dand notify la clientii din nodul frunza.
+> CONTEXT: A client can subscribe or unsubscribe to topics like `ana/*`, which matches topics starting with `ana/` and ending or being followed by any number of levels. The same concept applies to `+`, which generally does a similar thing.
 
-Cand dau de cuvantul meu sau + in parsarea topicului il iau de bun si merg mai departe, daca dau de * il iau de bun si merg mai departe
-in parcurgerea grafului tinand cont ca vreau sa caut si restul cuvintelor din topic printre copii nodului *.
+I created a tree from the topics to which clients subscribe. In the leaf nodes, I store the clients subscribed to that specific topic. Client notification is done by traversing the tree and notifying clients in the leaf node.
 
->NOTE: este posibil ca testele care imi ies din timp sa iasa din timp din cauza algoritmului pentru *.
+When I encounter my custom word or `+` during topic parsing, I accept it and move forward. If I encounter `*`, I accept it and continue traversing the graph, keeping in mind that I also want to search for the rest of the words in the topic among the children of the `*` node.
 
-### De ce numar mic pe listen?
+> NOTE: It's possible that tests that run out of time do so because of the algorithm for `*`.
 
-Din ce am inteles numarul maxim de utilizatori pus in functia listen este o coada de clienti folosita doar daca am clienti in asteptare, nu limiteaza in vre-un fel cati clienti se pot conecta la server.
+### Why a small number for listen?
 
-### Cati clienti se pot comecta la server?
+From what I understand, the maximum number of users set in the `listen` function is a client queue used only if there are pending clients; it doesn't limit in any way how many clients can connect to the server.
 
-Oricati! Periodic verific dimensiunea lui events_array si o dublez daca e nevoie.
+### How many clients can connect to the server?
 
-### Output client
+As many as needed! Periodically, I check the size of `events_array` and double it if necessary.
 
-Se cerea <IP client udp>:<port client udp> .... Eu am implementat acest feature, dar l-am comentat pt a face checkerul sa mearga.
+### Client Output
 
-### De ce C++?
+The requirement was `<IP client udp>:<port client udp> ....`. I implemented this feature, but I commented it out to make the checker work.
 
-Voiam sa incerc ceva diferit si speram ca voi termina tema mai repede, dar nu a fost asa, cred ca mai bine faceam in c.
-Ce am eu este un c 65% c++ restul.
+### Why C++?
+
+I wanted to learn C++ and desired to show that I could handle this language.
 
 ### Makefile
 
-Nu eu l-am facut, inteligenta artificiala m-a ajutat sa o fac. Spre apararea mea aveam un makefile primitiv facut,
-dar nu era destul de generic pt asa multe fisiere. Singur m-am gandit in schimb sa generez fisierele obiect si binarele intermediare in foldere separate.
+I didn't create it myself; artificial intelligence helped me make it. In my defense, I had a primitive makefile already, but it wasn't generic enough for so many files. However, I did think independently about generating object files and intermediate binaries in separate folders.
 
-## Ce ar merge schimbar
+## What I Added
 
-Daca tot am facut in C++ cred ca as putea sa inglobez file descriptorii intr-o clasa ca atunci cand iese din scope si se dealoca de pe
-stiva sa se inchida automat fd-ul.
+The original version used a naive socket implementation with many `goto` statements and system call checks. To unify the process, I created a `Socket` and `Epoll` class so that if something goes wrong, I can `return` and have the sockets automatically closed.
 
-Alocarile de buffere: Acum ca stiu mai multe as fi putut folosi la greu vector<char>data.resize sa fac memcpy memset etc apoi sa ma folosesc de data.data().
+## What Could Be Improved
 
-## Impresii despre tema
+Buffer allocations: Now that I know more, I could have extensively used `vector<char>data.resize` to perform `memcpy`, `memset`, etc., and then use `data.data()`.
 
-Abea astept sa o pun pe git, sa o mai finisez, sa o pun in cv etc. Pe scurt mi-a placut mai mult pe final cand am dat debug si chair am inteles ce se inatmpla e fapt.
-Tema a fost grea dar e bine venita.
+## Impressions about the Project
+
+I can't wait to put it on Git, refine it further, add it to my CV, etc. In short, I enjoyed it more towards the end when I was debugging and truly understood what was happening. The project was interesting and a welcome challenge.
